@@ -30,6 +30,8 @@ library(enrichplot)
 library(viridis)
 library(babelgene)
 library(DOSE)
+library(org.Hs.eg.db)
+library(patchwork)
 ```
 
 #***Using DeSeq2***
@@ -182,39 +184,10 @@ M_resOrdered <- M_res[order(M_res$padj),] #reorder the genes based on significan
 head(M_resOrdered, 10)
 ```
 
-#***Plotting results***
-Heatmaps are a good way to visualize the most significant genes
+#Plotting results
+###volcano plots
 ```{r}
-mat <- assay(vsd)[ head(order(M_res$padj),
-                            30), #top 30 genes 
-                       ]
-df <- as.data.frame(colData(vsd)[,
-                                     "exposure"])
-rownames(df)<-colnames(mat)
-colnames(df)[1]<- "Exposure"
-```
-
-```{r}
-tiff(file = "Striatum/heatmap/Male_heatmap.tiff", units="in", width=8, height=5, res=1000)
-heat<- pheatmap(mat, 
-         annotation_col=df,
-         labels_row = M_resOrdered$symbol,
-         fontsize = 6,
-         scale = "row",
-         show_colnames = F,
-         cluster_cols = F,
-         main = "Male Striatum Heatmap")
-
-heat 
-
-dev.off()
-
-heat
-```
-
-#***volcano plots***
-```{r}
-tiff(file = 'Striatum/volcano_plots/M_volcano_plot_CRBLM.tiff', units="in", width=8, height=5, res=1000)
+tiff(file = 'Striatum/volcano_plots/M_volcano_plot_stn.tiff', units="in", width=8, height=5, res=1000)
 M_vol1<- EnhancedVolcano(M_res,
     lab = M_res$symbol,
     x = 'log2FoldChange',
@@ -392,36 +365,6 @@ F_resOrdered <- F_res[order(F_res$padj),] #reorder the genes based on significan
 head(F_resOrdered, 10)
 ```
 
-#***Plotting Female results***
-Heatmaps are a good way to visualize the most significant genes
-```{r}
-mat <- assay(vsd)[ head(order(F_res$padj),
-                            30), #top 30 genes 
-                       ]
-df <- as.data.frame(colData(vsd)[,
-                                     "exposure"])
-rownames(df)<-colnames(mat)
-colnames(df)[1]<- "Exposure"
-```
-
-```{r}
-tiff(file = "Striatum/heatmaps/Female_heatmap.tiff", units="in", width=8, height=5, res=1000)
-heat<- pheatmap(mat, 
-         annotation_col=df,
-         labels_row = F_resOrdered$symbol,
-         fontsize = 6,
-         scale = "row",
-         show_colnames = F,
-         cluster_cols = F,
-         main = "Female Striatum Heatmap")
-
-heat 
-
-dev.off()
-
-heat
-```
-
 #***Female volcano plot***
 ```{r}
 tiff(file = 'Striatum/volcano_plots/F_volcano_plot_STN.tiff', units="in", width=8, height=5, res=1000)
@@ -462,7 +405,7 @@ write.csv(as.data.frame(assay(F_se)), file= "Striatum/results/Female_STN_counts.
 
 
 ----------------
-#**MALE gene enrichment analysis (GSEA)**
+#Gene enrichment analysis (GSEA)**
 ```{r}
 x<- M_res[order(M_res$log2FoldChange, decreasing = TRUE),] #reorder the genes based on significance
 head(x)
@@ -473,183 +416,6 @@ head(gene_list)
 ```
 
 ```{r}
-Mgse <- gseGO(geneList= gene_list, 
-             ont ="ALL", 
-             keyType = "ENSEMBL", 
-             nPerm = 10000, 
-             minGSSize = 3, 
-             maxGSSize = 800, 
-             pvalueCutoff = 0.05, 
-             verbose = TRUE, 
-             OrgDb = org.Rn.eg.db, 
-             pAdjustMethod = "none")
-
-```
-
-```{r}
-data<-data.frame(Mgse)
-write.csv(data,file="Striatum/Enrichment/Male_STN_gene_enrichment.csv")
-```
-
-
-```{r}
-tiff(file = 'Striatum/Enrichment/Male_Striatum_gene_enrichment.tiff', units="in", width=7, height=5, res=1000)
-dot1<-dotplot(Mgse, 
-              showCategory=5, 
-              split=".sign") +
-  geom_point(shape = 1,
-             colour = "black") +
-  scale_color_viridis(option = "inferno", 
-                      direction = -1) +
-  facet_grid(.~.sign)+
-  theme(panel.spacing = unit(0.5, "cm",data = NULL), 
-        panel.grid.minor = element_blank())+
-  scale_y_discrete(labels = function(x) ifelse(str_detect(x, "gap"), "", str_wrap(x, width = 30)))+
-  theme(axis.text.y = element_text(size = 12), 
-        strip.background = element_blank(), 
-        strip.text.x = element_text(size = 16))+
-  theme(legend.text = element_text(size = 10),
-        legend.key.width= unit(0.3, 'cm'))
-dot1
-dev.off()
-dot1
-```
-#disease ontology (DO) Male
-```{r}
-x<- M_res[order(M_res$log2FoldChange, 
-                decreasing = TRUE),]   #reorder the genes based on significance
-
-x<-na.omit(x)
-
-gene_list<-x$log2FoldChange
-g_list<-data.frame(gene_list)
-colnames(g_list)<-"LFC"
-
-g_list$entrez<-x$ENTREZID
-
-hum_orthos<- orthologs(genes = g_list$entrez, 
-                       species = "rat", 
-                       human = FALSE)
-
-DO_data<-merge(g_list, 
-               hum_orthos, 
-               by.x = "entrez", 
-               by.y= "entrez", 
-               ll.x = TRUE)
-
-#rename the listed Fold changes for the genes with the human equivalent for DO
-genes<-DO_data$LFC
-names(genes)<-DO_data$human_entrez
-genes<-genes[order(genes, decreasing=TRUE)]
-head(genes,10)
-```
-
-
-```{r}
-DO <- gseDO(gene          = genes,
-           minGSSize     = 120,
-           pvalueCutoff  = 0.2,
-           pAdjustMethod = "BH",
-           verbose       = FALSE)
-head(DO)
-```
-
-
-```{r}
-data<-data.frame(DO)
-write.csv(data ,file="Striatum/Enrichment/Male_STN_disease_enrichment.csv")
-```
-
-```{r}
-tiff(file = 'Striatum/Enrichment/Male_STN_disease_enrichment.tiff', units="in", width=7, height=5, res=1000)
-dot17<-dotplot(DO,showCategory=5, 
-               split=".sign") +
-  geom_point(shape = 1,
-             colour = "black") +
-  scale_color_viridis(option = "inferno", 
-                      direction = -1) +
-  facet_grid(.~.sign)+
-  theme(panel.spacing = unit(0.5, "cm",data = NULL), 
-        panel.grid.minor = element_blank())+
-  scale_y_discrete(labels = function(x) ifelse(str_detect(x, "gap"), "", str_wrap(x, width = 25)))+
-  theme(axis.text.y = element_text(size = 16), 
-        strip.background = element_blank(), 
-        strip.text.x = element_text(size = 16)) +
-  theme(legend.text = element_text(size = 10),
-        legend.key.width= unit(0.3, 'cm'))
-dot17
-dev.off()
-dot17
-```
-
-# MALE KEGG pathview
-```{r}
-x<- M_res[order(M_res$log2FoldChange, 
-                decreasing = TRUE),]  #reorder the genes based on significance
-x<-na.omit(x)
-gene_list<-x$log2FoldChange
-names(gene_list)<-x$ENTREZID
-head(gene_list)
-```
-
-
-```{r}
-kegg_organism = "rno"
-Mkk2 <- gseKEGG(geneList     = gene_list,
-               organism     = kegg_organism,
-               nPerm        = 10000,
-               minGSSize    = 3,
-               maxGSSize    = 800,
-               pvalueCutoff = 0.05,
-               pAdjustMethod = "none",
-               keyType       = "ncbi-geneid")
-
-```
-
-```{r}
-data<-data.frame(Mkk2)
-write.csv(data,file="Striatum/Enrichment/Male_STN_KEGG_enrichment.csv")
-```
-
-
-```{r}
-tiff(file = 'Striatum/Enrichment/Male_Striatum_KEGG_enrichment.tiff', units="in", width=7, height=5, res=1000)
-dot2<-dotplot(Mkk2, 
-              showCategory=5, 
-              split=".sign") +
-  geom_point(shape = 1,
-             colour = "black") +
-  scale_color_viridis(option = "inferno",
-                      direction = -1) +
-  facet_grid(.~.sign)+
-  theme(panel.spacing = unit(0.5, "cm",data = NULL), 
-        panel.grid.minor = element_blank())+
-  scale_y_discrete(labels = function(x) ifelse(str_detect(x, "gap"), "", str_wrap(x, width = 25)))+
-  theme(axis.text.y = element_text(size = 14), 
-        strip.background = element_blank(),
-        strip.text.x = element_text(size = 16)) +
-  theme(legend.text = element_text(size = 10),
-        legend.key.width= unit(0.3, 'cm'))
-dot2
-dev.off()
-dot2
-```
-
-```{r}
-male_STN_big<- dot1|dot2|dot17
-
-tiff(file = 'Striatum/Enrichment/male_STN_big.tiff', units="in", width=28, height=5.75, res=500)
-male_STN_big
-dev.off()
-```
-
-```{r}
-# Produce the native KEGG plot (PNG)
-#male_Striatum <- pathview(gene.data=gene_list, pathway.id="05022", species = kegg_organism)
-```
-
-#**FEMALE gene enrichment analysis (GSEA)**
-```{r}
 x<- F_res[order(F_res$log2FoldChange, 
                 decreasing = TRUE),] #reorder the genes based on significance
 x<-na.omit(x)
@@ -658,173 +424,150 @@ names(gene_list)<-x$ensembl
 head(gene_list)
 ```
 
+#Compare Cluster Gene, placing all treatment groups in the same dotplot
 ```{r}
-Fgse <- gseGO(geneList= gene_list, 
-             ont ="ALL", 
-             keyType = "ENSEMBL", 
-             nPerm = 10000, 
-             minGSSize = 3, 
-             maxGSSize = 800, 
-             pvalueCutoff = 0.05, 
-             verbose = TRUE, 
-             OrgDb = org.Rn.eg.db, 
-             pAdjustMethod = "none")
-
-```
-
-```{r}
-data<-data.frame(Fgse)
-write.csv(data ,file="Striatum/Enrichment/female_STN_gene_enrichment.csv")
-```
-
-```{r}
-tiff(file = 'Striatum/Enrichment/Female Striatum_gene_enrichment.tiff', units="in", width=7, height=5, res=1000)
-dot3<-dotplot(Fgse, 
-              showCategory=5, 
-              split=".sign") +
-  geom_point(shape = 1,
-             colour = "black") +
-  scale_color_viridis(option = "inferno", 
-                      direction = -1) +
-  facet_grid(.~.sign)+
-  theme(panel.spacing = unit(0.5, "cm",data = NULL), 
-        panel.grid.minor = element_blank())+
-  scale_y_discrete(labels = function(x) ifelse(str_detect(x, "gap"), "", str_wrap(x, width = 25)))+
-  theme(axis.text.y = element_text(size = 14), 
-        strip.background = element_blank(),
-        strip.text.x = element_text(size = 16)) +
-  theme(legend.text = element_text(size = 10),
-        legend.key.width= unit(0.3, 'cm'))
-dot3
-dev.off()
-dot3
-```
-#disease ontology (DO) Female
-```{r}
-x<- F_res[order(F_res$log2FoldChange, 
-                decreasing = TRUE),]  #reorder the genes based on significance
+x<- M_res[order(M_res$log2FoldChange, decreasing = TRUE),]  #reorder the genes based on significance
 x<-na.omit(x)
+
 gene_list<-x$log2FoldChange
 g_list<-data.frame(gene_list)
 colnames(g_list)<-"LFC"
+
 g_list$entrez<-x$ENTREZID
 
-hum_orthos<- orthologs(genes = g_list$entrez, 
-                       species = "rat", 
-                       human = FALSE)
 
-DO_data<-merge(g_list, 
-               hum_orthos, 
-               by.x = "entrez", 
-               by.y= "entrez", 
-               all.x = TRUE)
+hum_orthos<- orthologs(genes = g_list$entrez, species = "rat", human = FALSE)
+
+DO_data<-merge(g_list, hum_orthos, by.x = "entrez", by.y= "entrez", all.x = TRUE)
 
 #rename the listed Fold changes for the genes with the human equivalent for DO
-genes<-DO_data$LFC
-names(genes)<-DO_data$human_entrez
-genes<-genes[order(genes, decreasing=TRUE)]
-head(genes,10)
-```
-
-
-```{r}
-DO <- gseDO(gene          = genes,
-           minGSSize     = 120,
-           pvalueCutoff  = 0.2,
-           pAdjustMethod = "BH",
-           verbose       = FALSE)
-head(DO)
-```
-
-
-```{r}
-data<-data.frame(DO)
-write.csv(data ,file="Striatum/Enrichment/Female_STN_disease_enrichment.csv")
+genes1<-DO_data$LFC
+names(genes1)<-DO_data$human_entrez
+genes1<-genes1[order(genes1, decreasing=TRUE)]
+head(genes1,10)
 ```
 
 ```{r}
-tiff(file = 'Striatum/Enrichment/Female_STN_disease_enrichment.tiff', units="in", width=7, height=5, res=1000)
-dot18<-dotplot(DO,
-               showCategory=5, 
-               split=".sign") +
-  geom_point(shape = 1,
-             colour = "black") +
-  scale_color_viridis(option = "inferno", 
-                      direction = -1) +
-  facet_grid(.~.sign)+
-  theme(panel.spacing = unit(0.5, "cm",data = NULL), 
-        panel.grid.minor = element_blank())+
-  scale_y_discrete(labels = function(x) ifelse(str_detect(x, "gap"), "", str_wrap(x, width = 25)))+
-  theme(axis.text.y = element_text(size = 16), 
-        strip.background = element_blank(), 
-        strip.text.x = element_text(size = 16)) +
-  theme(legend.text = element_text(size = 10),
-        legend.key.width= unit(0.3, 'cm'))
-dot18
-dev.off()
-dot18
-```
-
-#FEMALE KEGG pathview for FEMALE
-```{r}
-x<- F_res[order(F_res$log2FoldChange, 
-                decreasing = TRUE),]  #reorder the genes based on significance
+x<- F_res[order(F_res$log2FoldChange, decreasing = TRUE),]  #reorder the genes based on significance
 x<-na.omit(x)
+
 gene_list<-x$log2FoldChange
-names(gene_list)<-x$ENTREZID
-head(gene_list)
+g_list<-data.frame(gene_list)
+colnames(g_list)<-"LFC"
+
+g_list$entrez<-x$ENTREZID
+
+
+hum_orthos<- orthologs(genes = g_list$entrez, species = "rat", human = FALSE)
+
+DO_data<-merge(g_list, hum_orthos, by.x = "entrez", by.y= "entrez", all.x = TRUE)
+
+#rename the listed Fold changes for the genes with the human equivalent for DO
+genes2<-DO_data$LFC
+names(genes2)<-DO_data$human_entrez
+genes2<-genes2[order(genes2, decreasing=TRUE)]
+head(genes2,10)
+```
+
+##*STN*
+###Gene
+```{r}
+inputList <- list(`Male` = genes1, `Female` = genes2)
+STN_groups <- compareCluster(geneClusters=inputList,  fun = "gseGO", OrgDb=org.Hs.eg.db, pvalueCutoff = 0.05, pAdjustMethod = "none")
+
+
+data<-data.frame(STN_groups)
+write.csv(data ,file="Striatum/Enrichment/Grouped_STN_Gene_enrichment.csv")
 ```
 
 
 ```{r}
-kegg_organism = "rno"
-Fkk2 <- gseKEGG(geneList     = gene_list,
-               organism     = kegg_organism,
-               nPerm        = 10000,
-               minGSSize    = 3,
-               maxGSSize    = 800,
-               pvalueCutoff = 0.05,
-               pAdjustMethod = "none",
-               keyType       = "ncbi-geneid")
-```
-
-```{r}
-data<-data.frame(Fkk2)
-write.csv(data ,file="Striatum/Enrichment/female_STN_KEGG_enrichment.csv")
-```
-
-
-```{r}
-tiff(file = 'Striatum/Enrichment/Female Striatum_KEGG_enrichment.tiff', units="in", width=7, height=5, res=1000)
-dot4<-dotplot(Fkk2,
-              showCategory=5,
-              split=".sign") +
-  geom_point(shape = 1,
-             colour = "black") +
-  scale_color_viridis(option = "inferno", 
-                      direction = -1) +
+tiff(file = 'Striatum/Enrichment/STN_grouped_gene_enrichment.tiff', units="in", width=8, height=5, res=1000)
+dot1<-dotplot(STN_groups,showCategory=3, split=".sign") +
+  geom_point(shape = 1,colour = "black") +
+  scale_color_viridis(option = "inferno", direction = -1) +
   facet_grid(.~.sign)+
-  theme(panel.spacing = unit(0.5, "cm",data = NULL), 
-        panel.grid.minor = element_blank())+
-  scale_y_discrete(labels = function(x) ifelse(str_detect(x, "gap"), "", str_wrap(x, width = 25)))+
-  theme(axis.text.y = element_text(size = 16), 
-        strip.background = element_blank(), 
-        strip.text.x = element_text(size = 16)) +
-  theme(legend.text = element_text(size = 10),
-        legend.key.width= unit(0.3, 'cm'))
-dot4
+  theme(panel.spacing = unit(0.5, "cm",data = NULL), panel.grid.minor = element_blank())+
+  scale_y_discrete(labels = function(x) ifelse(str_detect(x, "gap"), "", str_wrap(x, width = 45)))+
+  theme(axis.text.y = element_text(size = 12), 
+        strip.background = element_blank(),
+        strip.text.x = element_text(size = 12),
+        axis.text.x = element_text(size = 14),
+        axis.title.x = element_blank(),
+        legend.text = element_text(size = 10),
+        legend.key.width= unit(0.3, 'cm'))  
+dot1
 dev.off()
-dot4
+dot1
+```
+
+###KEGG
+```{r}
+STN_groups <- compareCluster(geneClusters=inputList,  fun = "gseKEGG", pvalueCutoff = 0.05, pAdjustMethod = "none")
+
+data<-data.frame(STN_groups)
+write.csv(data ,file="Striatum/Enrichment/Grouped_STN_KEGG_enrichment.csv")
+```
+
+
+```{r}
+tiff(file = 'Striatum/Enrichment/STN_grouped_kegg_enrichment.tiff', units="in", width=8, height=5, res=1000)
+dot2<-dotplot(STN_groups,showCategory=3, split=".sign") +
+  geom_point(shape = 1,colour = "black") +
+  scale_color_viridis(option = "inferno", direction = -1) +
+  facet_grid(.~.sign)+
+  theme(panel.spacing = unit(0.5, "cm",data = NULL), panel.grid.minor = element_blank())+
+  scale_y_discrete(labels = function(x) ifelse(str_detect(x, "gap"), "", str_wrap(x, width = 45)))+
+  theme(axis.text.y = element_text(size = 13), 
+        strip.background = element_blank(),
+        strip.text.x = element_text(size = 14),
+        axis.text.x = element_text(size = 12),
+        axis.title.x = element_blank(),
+        legend.text = element_text(size = 10),
+        legend.key.width= unit(0.3, 'cm'))  
+dot2
+dev.off()
+dot2
+```
+
+
+###Disease Ontology
+```{r}
+STN_groups_DO <- compareCluster(geneClusters=inputList,  fun = "gseDO", pvalueCutoff = 0.05, pAdjustMethod = "none")
+data<-data.frame(STN_groups)
+write.csv(data ,file="Striatum/Enrichment/Grouped_STN_Disease_enrichment.csv")
+```
+
+
+```{r}
+tiff(file = 'Striatum/Enrichment/STN_grouped_disease_enrichment.tiff', units="in", width=8, height=5, res=1000)
+dot3<-dotplot(STN_groups_DO,showCategory=3, split=".sign") +
+  geom_point(shape = 1,colour = "black") +
+  scale_color_viridis(option = "inferno", direction = -1) +
+  facet_grid(.~.sign)+
+  theme(panel.spacing = unit(0.5, "cm",data = NULL), panel.grid.minor = element_blank())+
+  scale_y_discrete(labels = function(x) ifelse(str_detect(x, "gap"), "", str_wrap(x, width = 45)))+
+  theme(axis.text.y = element_text(size = 12), 
+        strip.background = element_blank(),
+        strip.text.x = element_text(size = 14),
+        axis.text.x = element_text(size = 12),
+        axis.title.x = element_blank(),
+        legend.text = element_text(size = 10),
+        legend.key.width= unit(0.3, 'cm'))  
+dot3
+dev.off()
+dot3
 ```
 
 ```{r}
-Female_STN_big<- dot3|dot4|dot18
+STN_big<- dot1/dot2/dot3
 
-tiff(file = 'Striatum/Enrichment/Female_STN_big.tiff', units="in", width=28, height=5.75, res=500)
-Female_STN_big
+tiff(file = 'Striatum/Enrichment/STN_dot_plots_big.tiff', units="in",width=10, height=15, res=500)
+STN_big + plot_annotation(tag_levels = 'A') & 
+  theme(plot.tag = element_text(size = 16))
 dev.off()
-```
 
+```
 
 ```{r}
 # Produce the native KEGG plot (PNG)
